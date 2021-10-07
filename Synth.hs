@@ -84,18 +84,24 @@ renderNote :: (Note, Duration) -> [Sample]
 renderNote (note, duration) = map (* volume) $ map sin $ map (* (noteToHz(note) * 2*pi/sampleRate)) [0.0..sampleRate*duration]
 
 renderSequence :: [(Note, Duration)] -> [Sample]
-renderSequence notes = concat $ map renderNote notes
+renderSequence notes = concatMap renderNote notes
 
-sumLists :: [Sample] -> [Sample] -> [Sample]
-sumLists x y = map (uncurry (+)) $ zip x y
-          where ys = concat [y, take n (repeat 0.0)]
-                n = maximum([length x - length y, length y - length x, 0])
+-- | Mixes two samples together.
+mix :: Sample -> Sample -> Sample
+mix = (+) 
 
+-- | Renders notes together and mixes them.
 renderNoteGroup :: [(Note, Duration)] -> [Sample]
-renderNoteGroup notes = foldl (sumLists) (take (48000) (repeat 0.0)) $ map renderNote notes
+renderNoteGroup notes = foldl folder container padded 
+          where 
+                    folder = zipWith mix
+                    m = map renderNote notes
+                    maxLength = maximum $ map length m
+                    container = replicate maxLength 0.0
+                    padded = map (++ repeat 0.0) m
 
 render :: [Sample]
-render = renderNoteGroup [ (C, 1.50)
+render = renderNoteGroup [ (C, 2.50)
                          , (E, 1.50)
                          , (G, 1.50)
                         ]
