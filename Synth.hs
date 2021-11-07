@@ -4,11 +4,19 @@ module Synth
 , Hz
 , Semitones
 , sampleRate
+, OscShape
+, calculate
+, sawShape
+, sineShape
+, squareShape
 , a
 , render
+, fm
 ) where
 
 import           Data.Foldable
+import           Data.Fixed
+import GHC.Float.RealFracMethods (roundFloatInt)
 
 type Samples = Float
 type Sample = Float
@@ -63,7 +71,7 @@ transpose delta input = input * 2 ** (delta /12)
 -- | The 'semitonesToHz' function returns the transpose of
 -- A4 of the given number of Semitones.
 semitonesToHz :: Semitones -> Hz
-semitonesToHz = flip transpose $ a
+semitonesToHz = flip transpose a
 
 -- | The 'noteToHz' function is a convenience function
 -- which converts a note to a Hz value in the 4th octave.
@@ -80,11 +88,48 @@ transposeOctave octave = transpose semitones
 volume :: Float
 volume = 0.3
 
+newtype OscShape = OscShape {
+          calculate :: Float -> Sample
+                         } 
+
+
+sineShape :: OscShape
+sineShape = OscShape $ sin 
+                     . (* (2*pi/sampleRate))
+
+sawShape :: OscShape
+sawShape = OscShape $ normalize 
+                    . modOne
+                    . divisorFirst sampleRate
+          where mod = flip mod'
+                modOne = mod 1.0
+                divisorFirst = flip (/)
+                normalize = (\x -> x - 1.0) . (* 2)
+
+squareShape :: OscShape
+squareShape = OscShape $ fromIntegral
+                       . roundFloatInt 
+                       . modOne
+                       . divisorFirst sampleRate 
+          where mod = flip mod'
+                modOne = mod 1.0
+                divisorFirst = flip (/)
+
+-- | The 'fm' function applies frequency modulation from a modulator oscillator
+-- to a carrier oscillator.
+fm :: Float     -- ^ FM magnitude from 0.0 to 1.0.
+   -> OscShape  -- ^ Modulator shape.
+   -> OscShape  -- ^ Carrier shape.
+   -> OscShape  -- ^ An oscillator shape with the FM applied.
+fm amt modulator carrier = OscShape $ calculate carrier
+                                    . (* sampleRate)
+                                    . calculate modulator
+
 renderNote :: (Note, Duration) -> [Sample]
-renderNote (note, duration) = map (* volume) $ map sin $ map (* (noteToHz(note) * 2*pi/sampleRate)) [0.0..sampleRate*duration]
+renderNote (note, duration) = map (((* volume) . calculate (fm 0.8 sineShape sineShape)) . (* noteToHz note)) [0.0..sampleRate*duration]
 
 renderSequence :: [(Note, Duration)] -> [Sample]
-renderSequence notes = concatMap renderNote notes
+renderSequence = concatMap renderNote
 
 -- | Mixes two samples together.
 mix :: Sample -> Sample -> Sample
@@ -101,9 +146,9 @@ renderNoteGroup notes = foldl folder container padded
                     padded = map (++ repeat 0.0) m
 
 render :: [Sample]
-render = renderNoteGroup [ (C, 2.50)
-                         , (E, 1.50)
-                         , (G, 1.50)
+render = renderNoteGroup [ (C, 5.0)
+                         , (E, 5.0)
+                         , (G, 5.0)
                         ]
 -- play :: Note -> Octave -> Duration -> [Sample]
 -- play note octave duration =
