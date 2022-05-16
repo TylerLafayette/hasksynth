@@ -126,7 +126,7 @@ fm amt modulator carrier = OscShape $ calculate carrier
                                     . calculate modulator
 
 renderNote :: (Note, Duration) -> [Sample]
-renderNote (note, duration) = map (((* volume) . calculate (fm 0.8 sineShape sineShape)) . (* noteToHz note)) [0.0..sampleRate*duration]
+renderNote (note, duration) = map (((* volume) . calculate (sawShape)) . (* noteToHz note)) [0.0..sampleRate*duration]
 
 renderSequence :: [(Note, Duration)] -> [Sample]
 renderSequence = concatMap renderNote
